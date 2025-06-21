@@ -22,6 +22,8 @@ An intelligent PDF reader that converts documents to speech with advanced AI ana
 - **Playback Controls**: Play, pause, stop, and resume functionality
 - **Adjustable Speed**: 80-300 words per minute
 - **Volume Control**: 0-100% volume adjustment
+- **Voice Selection**: System voices + premium Azure neural voices
+- **☁️ Azure Integration**: High-quality AI voices (5 hours free/month)
 - **Export to WAV**: Save audio files for portable listening
 - **Multiple Content Modes**: Export full text, summaries, or key points
 
@@ -53,8 +55,9 @@ An intelligent PDF reader that converts documents to speech with advanced AI ana
    - 🎯 **Key Points**: Extract main points and highlights
    - ⚙️ **Optimize Voice**: Apply AI-recommended voice settings
 
-3. **Listen**: Choose your reading mode and click "Play"
-4. **Export**: Click "💾 Export MP3" to save audio for offline listening
+3. **Premium Voices** (Optional): Click "☁️ Azure Voices" to set up premium neural voices
+4. **Listen**: Choose your reading mode and click "Play"
+5. **Export**: Click "💾 Export MP3" to save audio for offline listening
 
 ## 📁 Project Structure
 
@@ -63,8 +66,11 @@ pdf/
 ├── ai_pdf_reader.py              # Main application with GUI
 ├── ml_features_optimized.py      # Optimized AI/ML features
 ├── run_ai_app.py                 # Application launcher
+├── azure_tts.py                 # Azure neural voice integration
+├── voice_config.py               # Voice configuration helpers
 ├── install_dependencies.py       # Dependency installer
 ├── requirements.txt              # Python dependencies
+├── AZURE_SETUP.md               # Azure setup guide
 ├── README.md                     # This file
 ├── cache/                        # AI model cache (auto-created)
 └── *.pdf                        # Your PDF files
@@ -111,6 +117,28 @@ Exported files are saved as high-quality WAV files that can be:
 - Transferred to mobile devices
 - Played in any audio player
 - Used offline during walks, commutes, or workouts
+
+## ☁️ Premium Azure Neural Voices
+
+Get studio-quality AI voices with Azure integration:
+
+### 🎵 **Voice Quality**
+- **System Voices (🔊)**: Good quality, always free
+- **Azure Neural (☁️)**: Excellent quality, 5 hours free/month
+
+### 🚀 **Setup** (Optional)
+1. Click "☁️ Azure Voices" in the app
+2. Follow the setup wizard
+3. Get 5 hours of premium voices free every month
+4. See [AZURE_SETUP.md](AZURE_SETUP.md) for detailed instructions
+
+### 🌟 **Available Voices**
+- **Jenny (US)** - Natural, friendly female voice ⭐ Recommended
+- **Guy (US)** - Professional male voice
+- **Sonia (UK)** - Elegant British female
+- **Ryan (UK)** - Professional British male
+- **Natasha (AU)** - Australian female
+- And many more!
 
 ## 🧠 AI Model Information
 

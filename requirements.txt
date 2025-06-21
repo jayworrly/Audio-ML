@@ -9,5 +9,5 @@ nltk==3.8.1
 spacy==3.7.2
 
 # Optional premium voice services (uncomment if you want to use them)
-# azure-cognitiveservices-speech==1.38.0  # For Azure Neural Voices
+azure-cognitiveservices-speech==1.38.0  # For Azure Neural Voices
 # google-cloud-texttospeech==2.16.4       # For Google Cloud TTS 

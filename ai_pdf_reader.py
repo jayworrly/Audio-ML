@@ -21,6 +21,7 @@ import wave
 import subprocess
 import sys
 from ml_features_optimized import ml_features_optimized
+from azure_tts import azure_tts
 
 class AIEnhancedPDFReader:
     def __init__(self, root):
@@ -69,7 +70,11 @@ class AIEnhancedPDFReader:
             
             # Try to find a better default voice (prefer female, English)
             best_voice = self.find_best_voice()
-            self.tts_engine.setProperty('voice', best_voice)
+            if best_voice:
+                self.tts_engine.setProperty('voice', best_voice)
+            else:
+                # Fallback to first available voice
+                self.tts_engine.setProperty('voice', voices[0].id)
             
         self.tts_engine.setProperty('rate', 180)
         self.tts_engine.setProperty('volume', 0.8)
@@ -250,6 +255,11 @@ class AIEnhancedPDFReader:
         self.preview_btn = ttk.Button(voice_frame, text="🔊 Preview", 
                                      command=self.preview_voice)
         self.preview_btn.grid(row=0, column=2, padx=(5, 0))
+        
+        # Azure setup button
+        self.azure_btn = ttk.Button(voice_frame, text="☁️ Azure Voices", 
+                                   command=self.setup_azure_voices)
+        self.azure_btn.grid(row=0, column=3, padx=(5, 0))
     
     def create_text_display(self, parent):
         """Create text display with tabs"""
@@ -804,22 +814,30 @@ $synth.Dispose()
         
         def speak():
             try:
-                sentences = re.split(r'[.!?]+', text)
-                for sentence in sentences:
-                    if not self.is_speaking:
-                        break
-                    
-                    sentence = sentence.strip()
-                    if sentence:
-                        self.root.after(0, lambda s=sentence: 
-                                      self.status_var.set(f"Speaking: {s[:40]}..."))
-                        self.tts_engine.say(sentence)
-                        self.tts_engine.runAndWait()
+                # Check if Azure voice is selected
+                selected_voice = self.voice_var.get()
                 
-                if self.is_speaking:
-                    self.root.after(0, lambda: self.status_var.set("Playback complete"))
-                    self.is_speaking = False
-                    self.root.after(0, self.update_playback_buttons)
+                if selected_voice.startswith("☁️") and azure_tts.is_available():
+                    # Use Azure TTS
+                    self.root.after(0, lambda: self.status_var.set("Speaking with Azure neural voice..."))
+                    
+                    # Set Azure TTS rate and volume
+                    azure_tts.set_speech_rate(self.speed_var.get())
+                    
+                    success = azure_tts.speak_text(text)
+                    
+                    if success:
+                        self.root.after(0, lambda: self.status_var.set("Azure playback complete"))
+                    else:
+                        self.root.after(0, lambda: self.status_var.set("Azure playback failed, trying system voice"))
+                        # Fallback to system voice
+                        self._speak_with_system_voice(text)
+                else:
+                    # Use system TTS
+                    self._speak_with_system_voice(text)
+                
+                self.is_speaking = False
+                self.root.after(0, self.update_playback_buttons)
                     
             except Exception as e:
                 self.root.after(0, lambda: self.status_var.set(f"Playback error: {str(e)}"))
@@ -827,6 +845,23 @@ $synth.Dispose()
                 self.root.after(0, self.update_playback_buttons)
         
         threading.Thread(target=speak, daemon=True).start()
+    
+    def _speak_with_system_voice(self, text):
+        """Helper function for system TTS"""
+        sentences = re.split(r'[.!?]+', text)
+        for sentence in sentences:
+            if not self.is_speaking:
+                break
+            
+            sentence = sentence.strip()
+            if sentence:
+                self.root.after(0, lambda s=sentence: 
+                              self.status_var.set(f"Speaking: {s[:40]}..."))
+                self.tts_engine.say(sentence)
+                self.tts_engine.runAndWait()
+        
+        if self.is_speaking:
+            self.root.after(0, lambda: self.status_var.set("Playback complete"))
     
     def pause_audio(self):
         """Pause audio playback"""
@@ -880,32 +915,38 @@ $synth.Dispose()
     
     def populate_voice_dropdown(self):
         """Populate the voice selection dropdown"""
-        if not hasattr(self, 'available_voices') or not self.available_voices:
-            return
-            
         voice_options = []
-        current_voice_id = self.tts_engine.getProperty('voice')
         current_selection = 0
         
-        for i, voice in enumerate(self.available_voices):
-            # Create a nice display name
-            name = str(voice.get('name', f'Voice {i+1}'))
-            # Clean up the voice name
-            if 'Microsoft' in name:
-                name = name.replace('Microsoft ', '')
-            if 'Desktop' in name:
-                name = name.replace(' Desktop', '')
+        # Add Azure voices if available
+        if azure_tts.is_available():
+            azure_voices = azure_tts.get_premium_voices()
+            for display_name, voice_id in azure_voices.items():
+                voice_options.append(f"☁️ {display_name}")
+        
+        # Add system voices
+        if hasattr(self, 'available_voices') and self.available_voices:
+            current_voice_id = self.tts_engine.getProperty('voice')
             
-            # Add gender info if available
-            gender = str(voice.get('gender', ''))
-            if gender and gender != 'Unknown' and gender.lower() != 'none':
-                name += f" ({gender})"
-            
-            voice_options.append(name)
-            
-            # Track current selection
-            if voice['id'] == current_voice_id:
-                current_selection = i
+            for i, voice in enumerate(self.available_voices):
+                # Create a nice display name
+                name = str(voice.get('name', f'Voice {i+1}'))
+                # Clean up the voice name
+                if 'Microsoft' in name:
+                    name = name.replace('Microsoft ', '')
+                if 'Desktop' in name:
+                    name = name.replace(' Desktop', '')
+                
+                # Add gender info if available
+                gender = str(voice.get('gender', ''))
+                if gender and gender != 'Unknown' and gender.lower() != 'none':
+                    name += f" ({gender})"
+                
+                voice_options.append(f"🔊 {name}")
+                
+                # Track current selection
+                if voice['id'] == current_voice_id:
+                    current_selection = len(voice_options) - 1
         
         self.voice_combo.config(values=voice_options)
         if voice_options:
@@ -913,11 +954,32 @@ $synth.Dispose()
     
     def change_voice(self, event=None):
         """Change the TTS voice"""
-        selection = self.voice_combo.current()
-        if 0 <= selection < len(self.available_voices):
-            voice_id = self.available_voices[selection]['id']
-            self.tts_engine.setProperty('voice', voice_id)
-            self.status_var.set(f"Voice changed to: {self.available_voices[selection]['name']}")
+        selected_voice = self.voice_var.get()
+        
+        if selected_voice.startswith("☁️"):
+            # Azure voice selected
+            display_name = selected_voice[2:].strip()  # Remove "☁️ " prefix
+            azure_voices = azure_tts.get_premium_voices()
+            
+            for name, voice_id in azure_voices.items():
+                if name == display_name:
+                    azure_tts.set_voice(voice_id)
+                    self.status_var.set(f"Azure voice changed to: {display_name}")
+                    return
+        
+        elif selected_voice.startswith("🔊"):
+            # System voice selected
+            display_name = selected_voice[2:].strip()  # Remove "🔊 " prefix
+            selection = self.voice_combo.current()
+            
+            # Calculate offset for Azure voices
+            azure_count = len(azure_tts.get_premium_voices()) if azure_tts.is_available() else 0
+            system_index = selection - azure_count
+            
+            if 0 <= system_index < len(self.available_voices):
+                voice_id = self.available_voices[system_index]['id']
+                self.tts_engine.setProperty('voice', voice_id)
+                self.status_var.set(f"System voice changed to: {display_name}")
     
     def preview_voice(self):
         """Preview the current voice with a sample text"""
@@ -937,8 +999,19 @@ $synth.Dispose()
             try:
                 self.is_speaking = True
                 self.update_playback_buttons()
-                self.tts_engine.say(sample_text)
-                self.tts_engine.runAndWait()
+                
+                # Check if Azure voice is selected
+                selected_voice = self.voice_var.get()
+                
+                if selected_voice.startswith("☁️") and azure_tts.is_available():
+                    # Use Azure TTS for preview
+                    azure_tts.set_speech_rate(self.speed_var.get())
+                    azure_tts.speak_text(sample_text)
+                else:
+                    # Use system TTS
+                    self.tts_engine.say(sample_text)
+                    self.tts_engine.runAndWait()
+                    
             except Exception as e:
                 print(f"Preview error: {e}")
             finally:
@@ -946,6 +1019,16 @@ $synth.Dispose()
                 self.root.after(0, self.update_playback_buttons)
         
         threading.Thread(target=preview_speak, daemon=True).start()
+    
+    def setup_azure_voices(self):
+        """Setup Azure Text-to-Speech credentials"""
+        dialog = AzureSetupDialog(self.root)
+        self.root.wait_window(dialog.dialog)
+        
+        if dialog.result:
+            # Refresh voice dropdown to include Azure voices
+            self.populate_voice_dropdown()
+            self.status_var.set("Azure voices enabled! Select a ☁️ voice from the dropdown.")
     
     def export_audio(self):
         """Export current text as audio file using Windows TTS"""
@@ -1111,6 +1194,124 @@ $synth.Dispose()
         if self.is_speaking:
             self.stop_audio()
         self.root.destroy()
+
+class AzureSetupDialog:
+    """Dialog for setting up Azure Speech credentials"""
+    
+    def __init__(self, parent):
+        self.result = False
+        
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("☁️ Azure Speech Setup")
+        self.dialog.geometry("500x400")
+        self.dialog.resizable(False, False)
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        
+        # Center on parent
+        self.dialog.geometry("+%d+%d" % (
+            parent.winfo_rootx() + 50,
+            parent.winfo_rooty() + 50
+        ))
+        
+        self.create_widgets()
+    
+    def create_widgets(self):
+        """Create dialog widgets"""
+        main_frame = ttk.Frame(self.dialog, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Title
+        title_label = ttk.Label(main_frame, text="🎯 Azure Speech Service Setup", 
+                               font=('Arial', 14, 'bold'))
+        title_label.pack(pady=(0, 15))
+        
+        # Instructions
+        instructions = """To use premium Azure neural voices:
+
+1. Go to: https://portal.azure.com
+2. Create an Azure account (free tier available)
+3. Create a "Speech Service" resource
+4. Copy your API Key and Region from the resource
+
+Azure gives you 5 hours of neural TTS free per month!"""
+        
+        ttk.Label(main_frame, text=instructions, justify=tk.LEFT).pack(pady=(0, 15))
+        
+        # Input fields
+        ttk.Label(main_frame, text="API Key:").pack(anchor=tk.W)
+        self.key_var = tk.StringVar()
+        key_entry = ttk.Entry(main_frame, textvariable=self.key_var, width=50, show="*")
+        key_entry.pack(fill=tk.X, pady=(5, 10))
+        
+        ttk.Label(main_frame, text="Region (e.g., eastus, westus2):").pack(anchor=tk.W)
+        self.region_var = tk.StringVar()
+        region_entry = ttk.Entry(main_frame, textvariable=self.region_var, width=50)
+        region_entry.pack(fill=tk.X, pady=(5, 15))
+        
+        # Status
+        self.status_var = tk.StringVar()
+        self.status_label = ttk.Label(main_frame, textvariable=self.status_var, foreground="blue")
+        self.status_label.pack(pady=(0, 15))
+        
+        # Buttons
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.pack(fill=tk.X)
+        
+        ttk.Button(btn_frame, text="Test Connection", 
+                  command=self.test_connection).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(btn_frame, text="Save & Use", 
+                  command=self.save_credentials).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Button(btn_frame, text="Cancel", 
+                  command=self.cancel).pack(side=tk.RIGHT)
+    
+    def test_connection(self):
+        """Test Azure connection"""
+        key = self.key_var.get().strip()
+        region = self.region_var.get().strip()
+        
+        if not key or not region:
+            self.status_var.set("❌ Please enter both API key and region")
+            return
+        
+        self.status_var.set("🔄 Testing connection...")
+        self.dialog.update()
+        
+        # Test connection
+        from azure_tts import AzureTTS
+        test_azure = AzureTTS(key, region)
+        if test_azure.setup_azure_speech():
+            voices = test_azure.get_available_voices()
+            if voices:
+                self.status_var.set(f"✅ Connected! Found {len(voices)} neural voices")
+            else:
+                self.status_var.set("✅ Connected, but no voices found")
+        else:
+            self.status_var.set("❌ Connection failed. Check your credentials")
+    
+    def save_credentials(self):
+        """Save credentials and close"""
+        key = self.key_var.get().strip()
+        region = self.region_var.get().strip()
+        
+        if not key or not region:
+            self.status_var.set("❌ Please enter both API key and region")
+            return
+        
+        # Save to environment variables and azure_tts instance
+        os.environ['AZURE_SPEECH_KEY'] = key
+        os.environ['AZURE_SPEECH_REGION'] = region
+        
+        # Reinitialize azure_tts with new credentials
+        azure_tts.__init__(key, region)
+        
+        self.result = True
+        self.dialog.destroy()
+    
+    def cancel(self):
+        """Cancel dialog"""
+        self.result = False
+        self.dialog.destroy()
 
 def main():
     """Main application entry point"""
