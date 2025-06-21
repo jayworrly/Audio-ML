@@ -1,0 +1,13 @@
+pypdf==5.0.0
+pyttsx3==2.90
+pillow==10.1.0
+transformers==4.35.2
+torch==2.1.0
+scikit-learn==1.3.2
+textstat==0.7.3
+nltk==3.8.1
+spacy==3.7.2
+
+# Optional premium voice services (uncomment if you want to use them)
+# azure-cognitiveservices-speech==1.38.0  # For Azure Neural Voices
+# google-cloud-texttospeech==2.16.4       # For Google Cloud TTS 
